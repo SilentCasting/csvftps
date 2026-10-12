@@ -121,4 +121,4 @@ def test_failed_conversion_leaves_old_output(tmp_path: Path) -> None:
     with pytest.raises(UnicodeDecodeError):
         convert_file(source, target, Rules())
     assert target.read_text(encoding="utf-8") == "previous"
-    assert [p.name for p in tmp_path.iterdir()] == ["in.csv", "out.csv"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["in.csv", "out.csv"]
