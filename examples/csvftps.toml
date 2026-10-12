@@ -1,0 +1,53 @@
+# Example settings. Try it without a server:
+#   csvftps convert -c examples/csvftps.toml
+# Relative paths are resolved against the folder of this file.
+
+interval = 600  # seconds between runs
+
+[files]
+input = "input.csv"
+output = "output.csv"
+extra = ["prices.csv"]  # uploaded as they are, before output.csv
+
+[csv]
+delimiter = ";"
+input_encoding = "utf-8-sig"
+output_encoding = "utf-8"
+# The first row is a header. Rows with one of these values in column 3
+# (0-based) start a new section and are copied unchanged.
+header_column = 3
+header_markers = ["Name Exchange"]
+
+[convert]
+column = "Size"  # a 0-based index such as 4 works too
+empty_values = ["", "NULL"]
+empty_label = "None"
+
+# min <= value < max, first match wins. Leave out min or max for an open end.
+[[convert.ranges]]
+max = 2
+label = "None"
+
+[[convert.ranges]]
+min = 2
+max = 6
+label = "2-5 inch"
+
+[[convert.ranges]]
+min = 6
+max = 11
+label = "6-10 inch"
+
+[[convert.ranges]]
+min = 11
+label = "> 10 inch"
+
+[server]
+host = "ftp.example.com"
+port = 21
+user = "dealer"
+remote_dir = "/upload"
+timeout = 30
+retries = 3
+retry_delay = 10
+verify_certificate = true

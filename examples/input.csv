@@ -1,0 +1,10 @@
+Id;Dealer;City;Group;Size;Price
+1;North;Kyiv;Phones;1.5;100
+2;North;Kyiv;Phones;2;120
+3;South;Odesa;Phones;5.9;130
+4;South;Odesa;Tablets;6;200
+5;West;Lviv;Tablets;10.7;210
+6;West;Lviv;Monitors;11;300
+7;East;Kharkiv;Monitors;NULL;310
+Id;Dealer;City;Name Exchange;Size;Price
+8;East;Kharkiv;TV;55;900
