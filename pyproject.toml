@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "csvftps"
 dynamic = ["version"]
-description = "Convert a CSV with your own rules and upload it to an FTPS server on a schedule. Desktop app + CLI."
+description = "Convert a CSV or Excel file with your own rules and upload it to an FTPS server on a schedule. Desktop app + CLI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "SilentCasting" }]
-keywords = ["csv", "ftps", "ftp", "upload", "sync", "schedule", "automation"]
+keywords = ["csv", "excel", "xlsx", "ftps", "ftp", "upload", "sync", "schedule", "automation"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "customtkinter>=5.2",
     "keyring>=25",
+    "openpyxl>=3.1",
     "tomli>=2; python_version < '3.11'",
     "tomli-w>=1",
 ]

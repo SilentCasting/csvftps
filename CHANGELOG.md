@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0] - 2026-10-25
+
+### Added
+- Excel support: `.xlsx` and `.xlsm` can be the input, `.xlsx` the output,
+  in any mix with CSV. The format follows the file extension.
+- `[excel] sheet` setting (and an "Excel sheet" field in the app) to read a
+  sheet by name or number; the first sheet is used by default.
+- Excel output keeps numbers as numbers, makes header rows bold and freezes
+  the first row. Text starting with `=` is stored as text, never as a formula.
+- A clear message when the input or output is open in Excel or another program.
+- `examples/input.xlsx`.
+
+### Changed
+- The app's file pickers and labels say "file" instead of "CSV" and offer
+  Excel workbooks.
+
 ## [1.0.0] - 2026-10-12
 
 Complete rewrite of the original 2022 script into a full app.

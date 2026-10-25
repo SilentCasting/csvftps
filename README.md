@@ -4,7 +4,7 @@
 
 # CSV FTPS Uploader
 
-**Convert a CSV with your own rules and upload it to an FTPS server on a schedule.**
+**Convert a CSV or Excel file with your own rules and upload it to an FTPS server on a schedule.**
 
 [![CI](https://github.com/SilentCasting/csvftps/actions/workflows/ci.yml/badge.svg)](https://github.com/SilentCasting/csvftps/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SilentCasting/csvftps)](https://github.com/SilentCasting/csvftps/releases/latest)
@@ -15,7 +15,7 @@ English · [Українська](README.uk.md)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img src="docs/screenshot-light.png" width="820" alt="CSV FTPS Uploader window with the file settings and a log of a finished upload">
+  <img src="docs/screenshot-light.png" width="820" alt="CSV FTPS Uploader window with an Excel workbook as input and the log of a finished conversion">
 </picture>
 
 </div>
@@ -26,8 +26,8 @@ A price list or stock export often has to reach a partner's FTP server every
 few minutes, and the partner wants some values in their own format: not
 `7.5`, but `6-10 inch`. CSV FTPS Uploader does that loop for you:
 
-1. reads your CSV and turns the numbers in one column into named ranges;
-2. uploads the result, plus any other files, to an FTPS server;
+1. reads your CSV or Excel file and turns the numbers in one column into named ranges;
+2. saves the result as CSV or Excel and uploads it, plus any other files, to an FTPS server;
 3. waits and does it again, every 10 minutes or whatever you choose.
 
 ## Features
@@ -35,6 +35,7 @@ few minutes, and the partner wants some values in their own format: not
 - 🔁 **Runs on a schedule** and keeps going when the network or server is down
 - 🧮 **Your own ranges**: `from ≤ value < to` → any label; empty and `NULL` cells too
 - 🏷️ Column by **number or name**; multi-section files with repeated header rows
+- 📊 **CSV and Excel** (`.xlsx`, `.xlsm`) in, CSV or `.xlsx` out, any sheet
 - 🔒 **Encrypted uploads**: TLS for the login *and* the data, certificate checked
 - 🔑 **Password in the system keyring** (Windows Credential Manager), not in a file
 - ♻️ **Retries** dropped connections and only re-sends what did not make it
@@ -72,10 +73,12 @@ This installs two commands: `csvftps-gui` (the app) and `csvftps` (the CLI).
 csvftps-gui
 ```
 
-1. **Files**: choose the input CSV and where to save the converted one. Add
-   any other files that should be uploaded as they are.
-2. **Conversion**: pick the column and edit the ranges. The defaults are the
-   size groups `None`, `2-5 inch`, `6-10 inch` and `> 10 inch`.
+1. **Files**: choose the input file (CSV or Excel) and where to save the
+   converted one; `.csv` or `.xlsx` picks the format. Add any other files
+   that should be uploaded as they are.
+2. **Conversion**: pick the column (and the Excel sheet, if not the first)
+   and edit the ranges. The defaults are the size groups `None`, `2-5 inch`,
+   `6-10 inch` and `> 10 inch`.
 3. **Server**: enter the host, user and password, then **Test connection**.
 4. Press **Start**. The app converts and uploads right away, then every
    *N* minutes. **Run once** does a single run; **Convert only** skips the upload.
@@ -96,6 +99,7 @@ csvftps test              # check the login
 csvftps run               # convert and upload now, then every `interval` seconds
 csvftps run --once        # a single run, e.g. from Task Scheduler or cron
 csvftps convert           # only convert, no upload
+csvftps convert -i stock.xlsx -o stock.csv   # Excel in, CSV out
 ```
 
 ```text
@@ -145,9 +149,12 @@ output = "output.csv"
 extra = ["prices.csv"]            # uploaded as they are
 
 [csv]
-delimiter = ";"
+delimiter = ";"                   # CSV files only
 header_column = 3                 # rows with a marker in this column are headers
 header_markers = ["Name Exchange"]
+
+[excel]
+sheet = "Stock"                   # Excel input only: a name or a number from 1; first sheet if left out
 
 [convert]
 column = "Size"                   # or a 0-based index such as 4
@@ -177,6 +184,21 @@ verify_certificate = true         # false only for a self-signed server you trus
   they fall in.
 - Anything else (text, short rows) is kept as it is and reported in the log.
 
+### Excel files
+
+The format of each file follows its extension: `.xlsx` and `.xlsm` are read
+as Excel, `.xlsx` is written as Excel, anything else is CSV. So any mix
+works: Excel to CSV, CSV to Excel, or Excel to Excel.
+
+- Cells are read as the text a CSV export would show: `12`, `7.5`,
+  `2026-10-25`, `TRUE`. Formulas give the value Excel last calculated.
+- In the Excel output, plain numbers are stored as numbers, header rows are
+  bold and the first row is frozen. Text such as `007` stays text, and text
+  starting with `=` is never turned into a formula.
+- Old `.xls` workbooks are not supported: save them as `.xlsx` first.
+  Macro workbooks (`.xlsm`) can be read but not written.
+- `delimiter` and the encodings only apply to CSV files.
+
 ### The password
 
 The password is never written to the settings file. It comes from the
@@ -197,7 +219,8 @@ python packaging/build_exe.py   # build dist/CsvFtps.exe
 ```
 
 The tests check the default ranges against the original 2022 script on
-thousands of values, and drive the upload code through a fake FTPS server.
+thousands of values, convert real workbooks both ways, and drive the
+upload code through a fake FTPS server.
 
 ### Releasing
 
@@ -216,14 +239,15 @@ GitHub Actions runs the tests, builds the exe and publishes the release.
 ```text
 src/csvftps/
 ├── config.py       # settings: dataclasses, TOML load/save, validation
-├── transform.py    # CSV conversion: headers, ranges, atomic write
+├── transform.py    # conversion: headers, ranges, atomic write
+├── excel.py        # reading and writing .xlsx workbooks
 ├── upload.py       # FTPS upload with TLS, retries and resume
 ├── credentials.py  # password from the environment or the system keyring
 ├── runner.py       # one run (convert + upload) and the schedule loop
 ├── cli.py          # command line interface
 ├── gui.py          # CustomTkinter desktop app
 └── assets/         # app icon
-examples/           # sample CSV and commented settings
+examples/           # sample CSV, workbook and commented settings
 tests/              # pytest suite
 packaging/          # PyInstaller build script
 ```

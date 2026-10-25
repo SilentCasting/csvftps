@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="csvftps",
-        description="Convert a CSV with your own rules and upload it to an FTPS server on a schedule.",
+        description="Convert a CSV or Excel file with your rules and upload it to an FTPS server.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -49,9 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--no-upload", action="store_true", help="only convert, do not upload")
     run.add_argument("--interval", type=int, metavar="SECONDS", help="override the time between runs")
 
-    conv = commands.add_parser("convert", parents=[common], help="only convert the CSV, once")
-    conv.add_argument("-i", "--input", metavar="CSV", help="override the input file")
-    conv.add_argument("-o", "--output", metavar="CSV", help="override the output file")
+    conv = commands.add_parser("convert", parents=[common], help="only convert the input file, once")
+    conv.add_argument("-i", "--input", metavar="FILE", help="override the input file")
+    conv.add_argument("-o", "--output", metavar="FILE", help="override the output file")
 
     password = commands.add_parser(
         "set-password", parents=[common], help="save the FTPS password in the system keyring"

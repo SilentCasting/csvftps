@@ -97,5 +97,5 @@ def test_run_once_without_password(project: Config, fake_ftps) -> None:
 
 def test_run_once_missing_input(project: Config, tmp_path: Path) -> None:
     project.input = str(tmp_path / "gone.csv")
-    with pytest.raises(RunError, match="input CSV not found"):
+    with pytest.raises(RunError, match="input file not found"):
         run_once(project, do_upload=False)

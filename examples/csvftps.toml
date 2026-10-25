@@ -1,15 +1,16 @@
 # Example settings. Try it without a server:
 #   csvftps convert -c examples/csvftps.toml
+#   csvftps convert -c examples/csvftps.toml -i examples/input.xlsx -o out.xlsx
 # Relative paths are resolved against the folder of this file.
 
 interval = 600  # seconds between runs
 
 [files]
-input = "input.csv"
-output = "output.csv"
+input = "input.csv"      # or input.xlsx; the extension picks the format
+output = "output.csv"    # or output.xlsx
 extra = ["prices.csv"]  # uploaded as they are, before output.csv
 
-[csv]
+[csv]  # CSV files only
 delimiter = ";"
 input_encoding = "utf-8-sig"
 output_encoding = "utf-8"
@@ -17,6 +18,9 @@ output_encoding = "utf-8"
 # (0-based) start a new section and are copied unchanged.
 header_column = 3
 header_markers = ["Name Exchange"]
+
+[excel]  # Excel input only
+sheet = ""  # a sheet name, or a number from 1; "" means the first sheet
 
 [convert]
 column = "Size"  # a 0-based index such as 4 works too

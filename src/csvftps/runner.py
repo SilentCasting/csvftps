@@ -9,9 +9,11 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from csvftps.config import Config
 from csvftps.credentials import PASSWORD_ENV, get_password
+from csvftps.excel import ExcelError
 from csvftps.transform import Stats, convert_file
 from csvftps.upload import UploadError, UploadResult, upload
 
@@ -47,11 +49,17 @@ def resolve_password(config: Config, password: str | None = None) -> str:
 def convert(config: Config) -> Stats:
     source, target = config.input_path, config.output_path
     if source == target:
-        raise RunError("the input and output CSV must be different files")
+        raise RunError("the input and output must be different files")
     try:
         stats = convert_file(source, target, config.rules)
     except FileNotFoundError as exc:
-        raise RunError(f"input CSV not found: {exc.filename}") from exc
+        raise RunError(f"input file not found: {exc.filename}") from exc
+    except PermissionError as exc:
+        # Anything but the input is the output or its temp file, which is not worth naming.
+        locked = source if exc.filename and Path(exc.filename) == source else target
+        raise RunError(f"cannot access {locked.name}: it may be open in Excel or another program") from exc
+    except ExcelError as exc:
+        raise RunError(str(exc)) from exc
     except UnicodeDecodeError as exc:
         raise RunError(
             f"{source.name} is not valid {config.rules.input_encoding} text "

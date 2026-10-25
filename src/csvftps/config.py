@@ -60,11 +60,14 @@ def default_ranges() -> list[Range]:
 
 @dataclass
 class Rules:
-    """How the input CSV is read and which column is converted."""
+    """How the input file is read and which column is converted."""
 
+    # CSV only; Excel files have no delimiter or encoding.
     delimiter: str = ";"
     input_encoding: str = "utf-8-sig"  # also reads plain UTF-8, and drops a BOM if there is one
     output_encoding: str = "utf-8"
+    # Excel input only: a sheet name, a number starting at 1, or "" for the first sheet.
+    sheet: int | str = ""
     # The first row is always a header. Rows whose ``header_column`` holds one
     # of ``header_markers`` are headers too and are copied unchanged.
     header_column: int = 3
@@ -153,6 +156,7 @@ def from_dict(data: dict[str, Any]) -> Config:
     files = _table(data, "files")
     csv = _table(data, "csv")
     convert = _table(data, "convert")
+    excel = _table(data, "excel")
     server = _table(data, "server")
     config = Config(
         input=_get(files, "input", str, "files", Config.input),
@@ -163,6 +167,7 @@ def from_dict(data: dict[str, Any]) -> Config:
             delimiter=_get(csv, "delimiter", str, "csv", Rules.delimiter),
             input_encoding=_get(csv, "input_encoding", str, "csv", Rules.input_encoding),
             output_encoding=_get(csv, "output_encoding", str, "csv", Rules.output_encoding),
+            sheet=_get(excel, "sheet", (int, str), "excel", Rules.sheet),
             header_column=_get(csv, "header_column", int, "csv", Rules.header_column),
             header_markers=_get_str_list(csv, "header_markers", "csv", ["Name Exchange"]),
             column=_get(convert, "column", (int, str), "convert", Rules.column),
@@ -181,7 +186,8 @@ def from_dict(data: dict[str, Any]) -> Config:
             verify_certificate=_get(server, "verify_certificate", bool, "server", Server.verify_certificate),
         ),
     )
-    for section, table in (("", data), ("files", files), ("csv", csv), ("convert", convert)):
+    sections = (("", data), ("files", files), ("csv", csv), ("convert", convert), ("excel", excel))
+    for section, table in sections:
         _reject_unknown(table, section)
     _reject_unknown(server, "server")
     validate(config)
@@ -191,6 +197,14 @@ def from_dict(data: dict[str, Any]) -> Config:
 def validate(config: Config) -> None:
     """Raise :class:`ConfigError` for values that can never work."""
     rules = config.rules
+    for key, path in (("input", config.input), ("output", config.output)):
+        suffix = Path(path).suffix.lower()
+        if suffix == ".xls":
+            raise ConfigError(f"files.{key}: old .xls workbooks are not supported; save it as .xlsx")
+        if key == "output" and suffix == ".xlsm":
+            raise ConfigError("files.output: macro workbooks (.xlsm) cannot be written; use .xlsx")
+    if isinstance(rules.sheet, int) and rules.sheet < 1:
+        raise ConfigError("excel.sheet must be a name, or a number starting at 1")
     if len(rules.delimiter) != 1:
         raise ConfigError("csv.delimiter must be exactly one character")
     if rules.header_column < 0:
@@ -298,6 +312,7 @@ def to_dict(config: Config) -> dict[str, Any]:
             "header_column": rules.header_column,
             "header_markers": list(rules.header_markers),
         },
+        "excel": {"sheet": rules.sheet},
         "convert": {
             "column": rules.column,
             "empty_values": list(rules.empty_values),

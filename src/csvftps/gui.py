@@ -1,4 +1,4 @@
-"""Desktop app: pick the CSV, set the rules and the server, then press Start."""
+"""Desktop app: pick the CSV or Excel file, set the rules and the server, then press Start."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ class App(ctk.CTk):
     def __init__(self, config_path: Path, autostart: bool = False) -> None:
         super().__init__()
         self.title("CSV FTPS Uploader")
-        self.geometry("1000x760")
+        self.geometry("1000x800")
         self.minsize(820, 620)
         self._set_icon()
 
@@ -138,7 +138,7 @@ class App(ctk.CTk):
         )
         ctk.CTkLabel(
             titles,
-            text="Converts your CSV with your rules and uploads it to an FTPS server on a schedule.",
+            text="Converts a CSV or Excel file with your rules and uploads it to an FTPS server on schedule.",
             text_color=MUTED,
         ).pack(anchor="w")
 
@@ -149,7 +149,7 @@ class App(ctk.CTk):
         self.theme_menu.pack(side="right")
 
     def _build_tabs(self) -> None:
-        self.tabs = ctk.CTkTabview(self, height=330)
+        self.tabs = ctk.CTkTabview(self, height=370)
         self.tabs.pack(fill="x", padx=20, pady=(0, 4))
         self._build_files_tab(self.tabs.add("Files"))
         self._build_rules_tab(self.tabs.add("Conversion"))
@@ -157,9 +157,9 @@ class App(ctk.CTk):
 
     def _build_files_tab(self, tab: ctk.CTkFrame) -> None:
         tab.grid_columnconfigure(1, weight=1)
-        self.input_entry = self._path_row(tab, 0, "Input CSV", self._pick_input)
-        self.output_entry = self._path_row(tab, 1, "Converted CSV", self._pick_output)
-        _hint(tab, "Written on every run, then uploaded together with the files below.").grid(
+        self.input_entry = self._path_row(tab, 0, "Input file", self._pick_input)
+        self.output_entry = self._path_row(tab, 1, "Converted file", self._pick_output)
+        _hint(tab, "CSV or Excel (.xlsx). Written on every run, then uploaded with the files below.").grid(
             row=2, column=1, sticky="w", pady=(0, 8)
         )
 
@@ -188,16 +188,17 @@ class App(ctk.CTk):
         left = ctk.CTkFrame(tab, fg_color="transparent")
         left.grid(row=0, column=0, sticky="nw", padx=(0, 24))
 
-        self.delimiter_entry = _field(left, 0, "Delimiter", width=50)
-        self.in_encoding = _combo(left, 1, "Input encoding", ENCODINGS)
-        self.out_encoding = _combo(left, 2, "Output encoding", ENCODINGS)
-        self.column_entry = _field(left, 3, "Column to convert", width=150)
-        _hint(left, "Number from 0, or the column name").grid(row=4, column=1, sticky="w")
-        self.header_column_entry = _field(left, 5, "Header marker column", width=50)
-        self.header_markers_entry = _field(left, 6, "Header markers", width=150)
-        _hint(left, "Comma-separated. The first row is\nalways a header.").grid(row=7, column=1, sticky="w")
-        self.empty_values_entry = _field(left, 8, "Treat as empty", width=150)
-        self.empty_label_entry = _field(left, 9, "Empty becomes", width=150)
+        self.delimiter_entry = _field(left, 0, "CSV delimiter", width=50)
+        self.in_encoding = _combo(left, 1, "CSV input encoding", ENCODINGS)
+        self.out_encoding = _combo(left, 2, "CSV output encoding", ENCODINGS)
+        self.sheet_entry = _field(left, 3, "Excel sheet", width=150, placeholder="first sheet")
+        self.column_entry = _field(left, 4, "Column to convert", width=150)
+        _hint(left, "Number from 0, or the column name").grid(row=5, column=1, sticky="w")
+        self.header_column_entry = _field(left, 6, "Header marker column", width=50)
+        self.header_markers_entry = _field(left, 7, "Header markers", width=150)
+        _hint(left, "Comma-separated. The first row is\nalways a header.").grid(row=8, column=1, sticky="w")
+        self.empty_values_entry = _field(left, 9, "Treat as empty", width=150)
+        self.empty_label_entry = _field(left, 10, "Empty becomes", width=150)
 
         right = ctk.CTkFrame(tab, fg_color="transparent")
         right.grid(row=0, column=1, sticky="nsew")
@@ -312,6 +313,7 @@ class App(ctk.CTk):
         _set(self.delimiter_entry, rules.delimiter)
         self.in_encoding.set(rules.input_encoding)
         self.out_encoding.set(rules.output_encoding)
+        _set(self.sheet_entry, str(rules.sheet))
         _set(self.column_entry, str(rules.column))
         _set(self.header_column_entry, str(rules.header_column))
         _set(self.header_markers_entry, ", ".join(rules.header_markers))
@@ -343,12 +345,14 @@ class App(ctk.CTk):
         # Keep settings that have no field in the window, like timeouts and retries.
         config.server = settings.Server(**vars(self.config_data.server))
         if not config.input or not config.output:
-            raise ConfigError("choose the input CSV and where to save the converted CSV (Files tab)")
+            raise ConfigError("choose the input file and where to save the converted file (Files tab)")
 
         rules = config.rules
         rules.delimiter = self.delimiter_entry.get()
         rules.input_encoding = self.in_encoding.get().strip()
         rules.output_encoding = self.out_encoding.get().strip()
+        sheet = self.sheet_entry.get().strip()
+        rules.sheet = int(sheet) if sheet.isdigit() else sheet
         column = self.column_entry.get().strip()
         rules.column = int(column) if column.isdigit() else column
         rules.header_column = _parse_int(self.header_column_entry.get(), "header marker column")
@@ -539,15 +543,17 @@ class App(ctk.CTk):
     # ------------------------------------------------------------ file pickers
 
     def _pick_input(self) -> None:
-        if path := filedialog.askopenfilename(parent=self, title="Choose the input CSV", filetypes=_CSV):
+        if path := filedialog.askopenfilename(parent=self, title="Choose the input file", filetypes=_INPUT):
             _set(self.input_entry, path)
             if not self.output_entry.get().strip():
+                # Same format as the input; a macro workbook cannot be written, so make it .xlsx.
                 source = Path(path)
-                _set(self.output_entry, str(source.with_name(f"{source.stem}_converted.csv")))
+                suffix = ".xlsx" if source.suffix.lower() == ".xlsm" else source.suffix
+                _set(self.output_entry, str(source.with_name(f"{source.stem}_converted{suffix}")))
 
     def _pick_output(self) -> None:
         path = filedialog.asksaveasfilename(
-            parent=self, title="Save the converted CSV as", defaultextension=".csv", filetypes=_CSV
+            parent=self, title="Save the converted file as", defaultextension=".csv", filetypes=_OUTPUT
         )
         if path:
             _set(self.output_entry, path)
@@ -616,13 +622,21 @@ class App(ctk.CTk):
 
 # ---------------------------------------------------------------- helpers
 
-_CSV = [("CSV files", "*.csv *.txt"), ("All files", "*.*")]
+_INPUT = [
+    ("CSV or Excel", "*.csv *.txt *.xlsx *.xlsm"),
+    ("CSV files", "*.csv *.txt"),
+    ("Excel workbooks", "*.xlsx *.xlsm"),
+    ("All files", "*.*"),
+]
+_OUTPUT = [("CSV file", "*.csv"), ("Excel workbook", "*.xlsx"), ("All files", "*.*")]
 _SECONDARY = {"fg_color": "transparent", "border_width": 1, "text_color": ("gray10", "gray90")}
 
 
-def _field(parent: ctk.CTkFrame, row: int, text: str, width: int) -> ctk.CTkEntry:
+def _field(
+    parent: ctk.CTkFrame, row: int, text: str, width: int, placeholder: str | None = None
+) -> ctk.CTkEntry:
     ctk.CTkLabel(parent, text=text).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
-    entry = ctk.CTkEntry(parent, width=width)
+    entry = ctk.CTkEntry(parent, width=width, placeholder_text=placeholder)
     entry.grid(row=row, column=1, sticky="w", pady=4)
     return entry
 
@@ -639,8 +653,11 @@ def _hint(parent: ctk.CTkFrame, text: str) -> ctk.CTkLabel:
 
 
 def _set(entry: ctk.CTkEntry, value: str) -> None:
-    entry.delete(0, "end")
-    entry.insert(0, value)
+    # Leave an empty entry alone: deleting or inserting "" would hide its placeholder text.
+    if entry.get():
+        entry.delete(0, "end")
+    if value:
+        entry.insert(0, value)
 
 
 def _split(text: str) -> list[str]:

@@ -1,4 +1,4 @@
-"""Convert one column of a CSV file into named ranges, e.g. ``7.5`` -> ``6-10 inch``."""
+"""Convert one column of a CSV or Excel file into named ranges, e.g. ``7.5`` -> ``6-10 inch``."""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ import csv
 import logging
 import os
 from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from csvftps import excel
 from csvftps.config import Rules
 
 log = logging.getLogger(__name__)
@@ -24,6 +26,7 @@ class Stats:
     converted: int = 0
     empty: int = 0  # empty or NULL values that got ``empty_label``
     skipped: int = 0  # rows left unchanged: too short, not a number or outside every range
+    header_rows: list[int] = field(default_factory=list)  # 0-based indexes of the header rows
     problems: list[str] = field(default_factory=list)
 
 
@@ -77,23 +80,24 @@ def convert_rows(rows: Iterable[list[str]], rules: Rules, stats: Stats) -> Itera
         stats.rows += 1
         if is_header(row, index, rules):
             stats.headers += 1
+            stats.header_rows.append(index)
             column = find_column(row, rules)
             if column is None:
-                _problem(stats, f"line {line}: header has no column named {rules.column!r}")
+                _problem(stats, f"row {line}: header has no column named {rules.column!r}")
             yield row
             continue
 
         if column is None or column >= len(row):
             stats.skipped += 1
             if column is not None:
-                _problem(stats, f"line {line}: only {len(row)} column(s), kept as is")
+                _problem(stats, f"row {line}: only {len(row)} column(s), kept as is")
             yield row
             continue
 
         new = convert_value(row[column], rules)
         if new is None:
             stats.skipped += 1
-            _problem(stats, f"line {line}: {row[column]!r} is not a number in any range, kept as is")
+            _problem(stats, f"row {line}: {row[column]!r} is not a number in any range, kept as is")
         else:
             if row[column].strip() in rules.empty_values:
                 stats.empty += 1
@@ -104,23 +108,26 @@ def convert_rows(rows: Iterable[list[str]], rules: Rules, stats: Stats) -> Itera
 
 
 def convert_file(source: str | os.PathLike[str], target: str | os.PathLike[str], rules: Rules) -> Stats:
-    """Convert ``source`` into ``target``.
+    """Convert ``source`` into ``target``; each can be a CSV or an Excel workbook.
 
-    The result is written to a temporary file first and then moved into place,
-    so ``target`` is never half-written, even if the input turns out broken.
+    The format follows the file extension: ``.xlsx``/``.xlsm`` is Excel,
+    anything else is CSV. The result is written to a temporary file first and
+    then moved into place, so ``target`` is never half-written, even if the
+    input turns out broken.
     """
     source, target = Path(source), Path(target)
     stats = Stats()
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_name(f".{target.name}.tmp")
     try:
-        with (
-            source.open(newline="", encoding=rules.input_encoding) as infile,
-            temp.open("w", newline="", encoding=rules.output_encoding) as outfile,
-        ):
-            reader = csv.reader(infile, delimiter=rules.delimiter)
-            writer = csv.writer(outfile, delimiter=rules.delimiter)
-            writer.writerows(convert_rows(reader, rules, stats))
+        with open_rows(source, rules) as rows:
+            converted = convert_rows(rows, rules, stats)
+            if excel.is_excel(target):
+                rows_out = list(converted)  # header_rows is only complete once all rows are read
+                excel.write_rows(temp, rows_out, stats.header_rows)
+            else:
+                with temp.open("w", newline="", encoding=rules.output_encoding) as outfile:
+                    csv.writer(outfile, delimiter=rules.delimiter).writerows(converted)
         os.replace(temp, target)
     finally:
         temp.unlink(missing_ok=True)
@@ -131,6 +138,17 @@ def convert_file(source: str | os.PathLike[str], target: str | os.PathLike[str],
     if hidden > 0:
         log.warning("%s: %d more row(s) kept as is", source.name, hidden)
     return stats
+
+
+@contextmanager
+def open_rows(source: Path, rules: Rules) -> Iterator[Iterator[list[str]]]:
+    """Yield the rows of a CSV file or of the chosen sheet of an Excel workbook."""
+    if excel.is_excel(source):
+        with excel.read_rows(source, rules.sheet) as rows:
+            yield rows
+    else:
+        with source.open(newline="", encoding=rules.input_encoding) as infile:
+            yield csv.reader(infile, delimiter=rules.delimiter)
 
 
 def _problem(stats: Stats, text: str) -> None:
